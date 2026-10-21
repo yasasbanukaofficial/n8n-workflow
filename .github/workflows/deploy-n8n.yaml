@@ -67,7 +67,7 @@ jobs:
             umask 077
 
             printf '%s\n' \
-              'N8N_HOST_DOMAIN=$N8N_HOST_DOMAIN' \
+              "HOST_DOMAIN=$N8N_HOST_DOMAIN" \
               'GENERIC_TIMEZONE=Asia/Colombo' \
               "N8N_ENCRYPTION_KEY=$N8N_ENCRYPTION_KEY" \
               > .env
