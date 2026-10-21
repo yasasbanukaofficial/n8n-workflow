@@ -1,0 +1,79 @@
+
+name: Deploy n8n
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker-compose.yaml'
+      - '.github/workflows/deploy-n8n.yaml'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-n8n
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare deployment directory
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: 22
+          script: |
+            mkdir -p /home/deploy/opt/n8n/local-files
+
+      - name: Copy Docker Compose file
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 2m
+          source: "docker-compose.yaml"
+          target: "/home/deploy/opt/n8n"
+
+      - name: Configure environment and deploy
+        uses: appleboy/ssh-action@v1
+        env:
+          N8N_ENCRYPTION_KEY: ${{ secrets.N8N_ENCRYPTION_KEY }}
+          N8N_HOST_DOMAIN: ${{ secrets.N8N_HOST_DOMAIN }}
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: 22
+          envs: N8N_ENCRYPTION_KEY,N8N_HOST_DOMAIN
+          script: |
+            set -eu
+
+            cd /home/deploy/opt/n8n
+
+            umask 077
+
+            printf '%s\n' \
+              'HOST_DOMAIN=$N8N_HOST_DOMAIN' \
+              'GENERIC_TIMEZONE=Asia/Colombo' \
+              "N8N_ENCRYPTION_KEY=$N8N_ENCRYPTION_KEY" \
+              > .env
+
+            chmod 600 .env
+
+            docker compose config -q
+            docker compose pull
+            docker compose up -d
